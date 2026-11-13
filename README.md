@@ -10,7 +10,9 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-This starts the FastAPI container at `http://localhost:8000`. Open `http://localhost:8000/docs` to explore the API, upload PDFs with `POST /documents`, and ask questions with `POST /questions`. Uploads are limited to 20 MiB by default. Locally stored originals use the persistent `app_data` Docker volume; chunks and vectors are stored in Milvus or Zilliz Cloud.
+This starts Nginx on `http://localhost`, which proxies requests to the private FastAPI container. Open `http://localhost/docs` to explore the API, upload PDFs with `POST /documents`, and ask questions with `POST /questions`. Uploads are limited to 20 MiB by default. Locally stored originals use the persistent `app_data` Docker volume; chunks and vectors are stored in Milvus or Zilliz Cloud. FastAPI's port is not published directly to the host.
+
+The Nginx proxy supports streaming responses from `POST /questions/stream` and allows uploads up to 21 MiB to accommodate the API's 20 MiB limit. This Compose configuration provides HTTP only; for public EC2 deployments, terminate HTTPS at an HTTPS-enabled load balancer or configure TLS for Nginx, and restrict inbound traffic with security groups.
 
 For incremental answers, send the same JSON body to `POST /questions/stream`:
 `{"question":"...","document_id":"optional-selected-document-id"}`. The response is
@@ -32,7 +34,7 @@ For running the API directly on the host instead of in Docker, use `MILVUS_URI=h
 .venv/bin/uvicorn app.main:app --reload
 ```
 
-Use `docker compose logs -f api` to view API logs and `docker compose down` to stop the containers. The named `app_data` volume is retained when containers stop.
+Use `docker compose logs -f api nginx` to view API and proxy logs and `docker compose down` to stop the containers. The named `app_data` volume is retained when containers stop.
 
 If `POST /questions` returns 503, inspect the API container logs for the underlying traceback. The response intentionally remains generic and does not expose provider errors. A Zilliz collection schema mismatch is one possible cause; use a fresh collection such as `rag_chunks_v2`, restart/rebuild the API so it reads the updated `.env`, and upload the PDFs again. The legacy collections are not modified or migrated.
 
