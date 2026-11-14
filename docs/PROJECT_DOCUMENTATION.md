@@ -149,14 +149,14 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-This builds and starts the FastAPI container. The API will be served at:
+This builds the FastAPI container and the Nginx reverse proxy. The API is served through Nginx at:
 
-- Swagger UI: `http://localhost:8000/docs`
-- Health check: `http://localhost:8000/health`
+- Swagger UI: `http://localhost/docs`
+- Health check: `http://localhost/health`
 
 The container receives application configuration from `.env`. `.env` is excluded from the Docker
 build context and is not copied into the image. Local original PDFs are persisted in the named
-`app_data` volume. View logs with `docker compose logs -f api` and stop containers with
+`app_data` volume. View logs with `docker compose logs -f api nginx` and stop containers with
 `docker compose down`.
 
 The default setup targets the configured hosted Zilliz endpoint. To use the optional local Milvus
@@ -179,6 +179,33 @@ For non-containerized development, use `.venv/bin/pip install -e '.[dev]'` and
 .venv/bin/pytest
 ```
 
+### 7.4 Branch-based CI and deployment
+
+The GitHub Actions workflow runs Ruff and pytest on pushes to `main` and `develop` and pull
+requests targeting either branch. Successful pushes deploy by branch:
+
+- `main` connects to EC2 over SSH, fetches and checks out the pushed commit, rebuilds the Compose
+  stack, and checks the Nginx health endpoint.
+- `develop` uses a repository-restricted, macOS self-hosted runner labeled `rag-laptop` to rebuild
+  and restart the local Compose stack. It uses Compose project name `rag` to keep the current local
+  named volumes.
+
+The production GitHub environment needs `EC2_HOST`, `EC2_USER`, `EC2_SSH_PRIVATE_KEY`,
+`EC2_KNOWN_HOSTS`, and `EC2_DEPLOY_PATH` secrets. EC2 must have Docker Compose, Git, curl, a clean
+repository checkout, a production `.env`, and a separate SSH key that can read the private repo.
+Validate the EC2 host key before storing it in `EC2_KNOWN_HOSTS`. The GitHub-hosted runner must be
+able to reach EC2 over SSH.
+
+The laptop runner must be online and able to access Docker Desktop. Set the GitHub `development`
+environment variable `RAG_DEV_ENV_FILE` to the absolute path of the laptop's local `.env`; the
+workflow copies it into the checkout for Compose and removes that copy after the run. Only trusted
+pushes deploy to this runner; pull requests run checks on GitHub-hosted runners and never run code
+on the laptop.
+
+The client uses `http://localhost` for the laptop stack and the public HTTPS domain for production.
+This client API URL is distinct from the backend's `MILVUS_URI`, which configures vector database
+connectivity. TLS and authentication must be configured separately from this deployment workflow.
+
 ## 8. Data flow and processing details
 
 ### 8.1 PDF ingestion
@@ -191,11 +218,17 @@ The endpoint:
 - accepts an optional `semantic_chunking` boolean form field to choose semantic or fixed-size chunking for that upload; if omitted, `CHUNKING_STRATEGY` is used
 - validates the filename extension
 - reads raw content up to the configured upload limit
-- calls `validate_pdf_upload()`
-- verifies the PDF contains extractable text
+- queues PDF parsing and embedding in a background worker
 - generates a unique `document_id`
-- saves the original PDF using the configured local or R2 document storage backend
-- calls `RagService.ingest()`
+- saves the original PDF using the configured local or R2 document storage backend in the worker
+- calls `RagService.ingest()` in the worker
+
+The request returns `202 Accepted` with a `job_id` immediately. Poll
+`GET /documents/{job_id}` to check for `queued`, `processing`, `completed`, or `failed`. A
+completed job includes its `document_id` and chunk count; a failed job has a safe `detail`
+message. The client should not wait for ingestion to finish as part of the upload HTTP request.
+The current job queue and statuses are in process memory, limited to one running and one queued
+upload. A process restart loses job statuses and stops in-flight work.
 
 The PDF validation and extraction logic is implemented in `app/services/pdf_ingestion.py`.
 
@@ -334,18 +367,28 @@ Response model:
 
 ```json
 {
+  "job_id": "<uuid>",
   "document_id": "<uuid>",
   "filename": "example.pdf",
-  "chunks": 12
+  "status": "queued",
+  "chunks": null,
+  "detail": null
 }
 ```
+
+The endpoint responds with `202 Accepted`. Poll `GET /documents/{job_id}` for the latest
+`queued`, `processing`, `completed`, or `failed` status. On completion, `chunks` contains the
+indexed chunk count. On failure, `detail` contains a user-safe explanation.
+
+The job queue is process-local, with one active worker and one queued job; a full queue returns
+HTTP 429 and a `Retry-After` header. Status entries are also process-local and are lost on restart.
+The client should poll status rather than setting a very long timeout on the upload request.
 
 Behavior:
 
 - rejects non-PDF files
 - rejects files above the configured `MAX_UPLOAD_BYTES`
-- rejects password-protected or malformed PDFs
-- rejects PDFs with no extractable text
+- reports password-protected, malformed, or text-empty PDFs as failed ingestion jobs
 
 ### 9.3 `POST /questions`
 

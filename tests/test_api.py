@@ -1,5 +1,6 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from time import monotonic, sleep
 from unittest.mock import patch
 
 import pymupdf
@@ -9,6 +10,18 @@ from google.genai.errors import ClientError
 from app.core.config import Settings, get_settings
 from app.main import app, get_rag_service
 from app.stores.document_storage import R2DocumentStorage, create_document_storage
+
+
+def wait_for_ingestion(client, job_id: str) -> dict:
+    deadline = monotonic() + 5
+    while monotonic() < deadline:
+        response = client.get(f"/documents/{job_id}")
+        assert response.status_code == 200
+        job = response.json()
+        if job["status"] in {"completed", "failed"}:
+            return job
+        sleep(0.01)
+    raise AssertionError(f"Ingestion job {job_id} did not finish in time")
 
 
 def test_question_response_has_stable_citation_shape():
@@ -145,18 +158,19 @@ def test_upload_quota_error_returns_429():
             _env_file=None,
         )
         try:
-            with patch("app.main.logger.warning") as log_warning:
-                response = TestClient(app).post(
-                    "/documents",
-                    files={"file": ("notes.pdf", content, "application/pdf")},
-                )
+            response = TestClient(app).post(
+                "/documents",
+                files={"file": ("notes.pdf", content, "application/pdf")},
+            )
         finally:
             app.dependency_overrides.clear()
 
-    assert response.status_code == 429
-    assert "quota exhausted" in response.json()["detail"]
-    assert "provider quota details" not in response.text
-    log_warning.assert_called_once_with("Gemini quota exhausted during document ingestion")
+    assert response.status_code == 202
+    assert response.json()["status"] == "queued"
+    job = wait_for_ingestion(TestClient(app), response.json()["job_id"])
+    assert job["status"] == "failed"
+    assert "quota exhausted" in job["detail"]
+    assert "provider quota details" not in job["detail"]
 
 
 def test_pdf_upload_extracts_and_stores_original():
@@ -186,7 +200,8 @@ def test_pdf_upload_extracts_and_stores_original():
             _env_file=None,
         )
         try:
-            response = TestClient(app).post(
+            client = TestClient(app)
+            response = client.post(
                 "/documents",
                 files={"file": ("notes.pdf", content, "application/pdf")},
                 data={"semantic_chunking": "false"},
@@ -194,8 +209,11 @@ def test_pdf_upload_extracts_and_stores_original():
         finally:
             app.dependency_overrides.clear()
 
-        assert response.status_code == 201
-        assert response.json()["chunks"] == 1
+        assert response.status_code == 202
+        assert response.json()["status"] == "queued"
+        job = wait_for_ingestion(client, response.json()["job_id"])
+        assert job["status"] == "completed"
+        assert job["chunks"] == 1
         assert len(list((Path(directory) / "documents").glob("*.pdf"))) == 1
 
 
@@ -224,7 +242,8 @@ def test_pdf_upload_accepts_semantic_chunking_form_field():
             _env_file=None,
         )
         try:
-            response = TestClient(app).post(
+            client = TestClient(app)
+            response = client.post(
                 "/documents",
                 files={"file": ("notes.pdf", content, "application/pdf")},
                 data={"semantic_chunking": "true"},
@@ -232,7 +251,16 @@ def test_pdf_upload_accepts_semantic_chunking_form_field():
         finally:
             app.dependency_overrides.clear()
 
-    assert response.status_code == 201
+    assert response.status_code == 202
+    job = wait_for_ingestion(client, response.json()["job_id"])
+    assert job["status"] == "completed"
+
+
+def test_document_ingestion_status_returns_404_for_unknown_job():
+    response = TestClient(app).get("/documents/unknown-job")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Document ingestion job not found"
 
 
 def test_r2_storage_uploads_pdf_to_configured_bucket():
