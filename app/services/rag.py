@@ -140,8 +140,24 @@ class RagService:
             embeddings.extend(self._embed(texts[start : start + batch_size], task))
         return embeddings
 
-    def ingest(self, document_id: str, filename: str, pages: list[tuple[int, str]]) -> int:
-        chunker = self._semantic_chunk_text if self.settings.chunking_strategy == "semantic" else None
+    def ingest(
+        self,
+        document_id: str,
+        filename: str,
+        pages: list[tuple[int, str]],
+        semantic_chunking: bool | None = None,
+    ) -> int:
+        use_semantic_chunking = (
+            self.settings.chunking_strategy == "semantic"
+            if semantic_chunking is None
+            else semantic_chunking
+        )
+        chunker = self._semantic_chunk_text if use_semantic_chunking else None
+        logger.info(
+            "Ingesting document %s with %s chunking",
+            document_id,
+            "semantic" if use_semantic_chunking else "fixed",
+        )
         chunks = build_chunks(
             document_id,
             filename,

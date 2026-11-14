@@ -100,6 +100,62 @@ class ChunkTextTests(unittest.TestCase):
 
 
 class EmbeddingBatchTests(unittest.TestCase):
+    def test_ingestion_can_disable_semantic_chunking_per_document(self):
+        settings = Settings(
+            gemini_api_key="test-key",
+            chunking_strategy="semantic",
+            _env_file=None,
+        )
+        store = type("FakeStore", (), {"insert": lambda self, chunks, vectors: None})()
+
+        with patch("app.services.rag.genai.Client"):
+            service = RagService(settings, store)
+        with (
+            patch.object(service, "_semantic_chunk_text") as semantic_chunk_text,
+            patch.object(service, "_embed_batches", return_value=[[1.0, 0.0]]) as embed_batches,
+        ):
+            count = service.ingest(
+                "doc-1",
+                "notes.pdf",
+                [(1, "A first sentence. A second sentence.")],
+                semantic_chunking=False,
+            )
+
+        self.assertEqual(count, 1)
+        semantic_chunk_text.assert_not_called()
+        self.assertEqual(
+            embed_batches.call_args.args[0],
+            ["A first sentence. A second sentence."],
+        )
+
+    def test_ingestion_can_enable_semantic_chunking_per_document(self):
+        settings = Settings(
+            gemini_api_key="test-key",
+            chunking_strategy="fixed",
+            _env_file=None,
+        )
+        store = type("FakeStore", (), {"insert": lambda self, chunks, vectors: None})()
+
+        with patch("app.services.rag.genai.Client"):
+            service = RagService(settings, store)
+        with (
+            patch.object(
+                service,
+                "_semantic_chunk_text",
+                return_value=["semantic chunk"],
+            ) as semantic_chunk_text,
+            patch.object(service, "_embed_batches", return_value=[[1.0, 0.0]]),
+        ):
+            count = service.ingest(
+                "doc-1",
+                "notes.pdf",
+                [(1, "Some source text.")],
+                semantic_chunking=True,
+            )
+
+        self.assertEqual(count, 1)
+        semantic_chunk_text.assert_called_once_with("Some source text.")
+
     def test_sentences_are_batched_at_configured_max_size(self):
         settings = Settings(
             gemini_api_key="test-key",

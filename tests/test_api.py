@@ -124,7 +124,13 @@ def test_question_quota_error_returns_429_without_provider_details():
 
 def test_upload_quota_error_returns_429():
     class QuotaLimitedRagService:
-        def ingest(self, document_id: str, filename: str, pages: list[tuple[int, str]]) -> int:
+        def ingest(
+            self,
+            document_id: str,
+            filename: str,
+            pages: list[tuple[int, str]],
+            semantic_chunking: bool | None = None,
+        ) -> int:
             raise ClientError(429, {"error": {"message": "provider quota details"}})
 
     document = pymupdf.open()
@@ -155,9 +161,16 @@ def test_upload_quota_error_returns_429():
 
 def test_pdf_upload_extracts_and_stores_original():
     class FakeRagService:
-        def ingest(self, document_id: str, filename: str, pages: list[tuple[int, str]]) -> int:
+        def ingest(
+            self,
+            document_id: str,
+            filename: str,
+            pages: list[tuple[int, str]],
+            semantic_chunking: bool | None = None,
+        ) -> int:
             assert filename == "notes.pdf"
             assert pages == [(1, "searchable text")]
+            assert semantic_chunking is False
             return 1
 
     document = pymupdf.open()
@@ -174,7 +187,9 @@ def test_pdf_upload_extracts_and_stores_original():
         )
         try:
             response = TestClient(app).post(
-                "/documents", files={"file": ("notes.pdf", content, "application/pdf")}
+                "/documents",
+                files={"file": ("notes.pdf", content, "application/pdf")},
+                data={"semantic_chunking": "false"},
             )
         finally:
             app.dependency_overrides.clear()
@@ -182,6 +197,42 @@ def test_pdf_upload_extracts_and_stores_original():
         assert response.status_code == 201
         assert response.json()["chunks"] == 1
         assert len(list((Path(directory) / "documents").glob("*.pdf"))) == 1
+
+
+def test_pdf_upload_accepts_semantic_chunking_form_field():
+    class FakeRagService:
+        def ingest(
+            self,
+            document_id: str,
+            filename: str,
+            pages: list[tuple[int, str]],
+            semantic_chunking: bool | None = None,
+        ) -> int:
+            assert semantic_chunking is True
+            return 1
+
+    document = pymupdf.open()
+    document.new_page().insert_text((72, 72), "searchable text")
+    content = document.tobytes()
+    document.close()
+
+    with TemporaryDirectory() as directory:
+        app.dependency_overrides[get_rag_service] = FakeRagService
+        app.dependency_overrides[get_settings] = lambda: Settings(
+            data_dir=Path(directory),
+            document_storage_backend="local",
+            _env_file=None,
+        )
+        try:
+            response = TestClient(app).post(
+                "/documents",
+                files={"file": ("notes.pdf", content, "application/pdf")},
+                data={"semantic_chunking": "true"},
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+    assert response.status_code == 201
 
 
 def test_r2_storage_uploads_pdf_to_configured_bucket():

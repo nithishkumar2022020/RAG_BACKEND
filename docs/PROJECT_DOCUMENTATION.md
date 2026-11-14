@@ -188,6 +188,7 @@ The ingestion flow begins in `POST /documents` in `app/main.py`.
 The endpoint:
 
 - accepts a multipart file upload
+- accepts an optional `semantic_chunking` boolean form field to choose semantic or fixed-size chunking for that upload; if omitted, `CHUNKING_STRATEGY` is used
 - validates the filename extension
 - reads raw content up to the configured upload limit
 - calls `validate_pdf_upload()`
@@ -219,10 +220,12 @@ sentence embeddings are used to find topic changes. Distances at or above the co
 `SEMANTIC_BREAKPOINT_PERCENTILE` become candidate boundaries. The chunk size remains a hard cap,
 and adjacent chunks retain up to `CHUNK_OVERLAP` characters of context.
 
-Set `CHUNKING_STRATEGY=fixed` to use the original `chunk_text(text, size, overlap)` implementation,
-which divides text into overlapping character windows. Semantic chunking makes additional embedding
-requests during ingestion, so its latency and API usage are higher than fixed chunking. Semantic
-sentences and final chunks are sent in batches of up to `EMBEDDING_BATCH_SIZE` texts per request.
+Set `CHUNKING_STRATEGY=fixed` to use fixed-size chunking by default, or pass
+`semantic_chunking=true` or `semantic_chunking=false` as a multipart field to `POST /documents` to
+override the default for one upload. Fixed-size chunking divides text into overlapping character
+windows. Semantic chunking makes additional sentence-level embedding requests during ingestion, so
+its latency and API usage are higher; fixed-size chunks still need embeddings for vector search.
+Semantic sentences and final chunks are sent in batches of up to `EMBEDDING_BATCH_SIZE` texts per request.
 Embedding calls are spaced according to `EMBEDDING_REQUESTS_PER_MINUTE` (30 requests/minute by
 default, leaving room for other Gemini API traffic sharing the same project quota). When Gemini
 returns a 429 response, the client honors its retry delay when available and retries up to

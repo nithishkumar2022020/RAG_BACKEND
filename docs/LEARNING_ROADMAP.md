@@ -63,6 +63,7 @@ pipeline; the later sections cover deploying and operating it.
 - [ ] **Embedding task types and dimensions** — Why the project labels embedding inputs as documents or queries and configures a vector dimension.
 - [ ] **Fixed-size chunking and overlap** — Splitting text into bounded windows while repeating some text across boundaries to preserve context.
 - [ ] **Semantic chunking** — Grouping sentences using embedding similarity so topic changes can become chunk boundaries.
+- [ ] **Per-upload feature configuration** — How an optional multipart form field can override the server's default chunking strategy for one document upload.
 - [ ] **Cosine similarity and distance** — Measuring the angle between vectors and using a change in similarity as a signal for a topic boundary.
 - [ ] **Percentiles and semantic breakpoints** — Using a distance percentile to decide which changes are large enough to split.
 - [ ] **Chunk-size tradeoffs** — How chunk length and overlap affect retrieval precision, context, model cost, and ingestion time.

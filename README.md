@@ -14,6 +14,14 @@ This starts Nginx on `http://localhost`, which proxies requests to the private F
 
 The Nginx proxy supports streaming responses from `POST /questions/stream` and allows uploads up to 21 MiB to accommodate the API's 20 MiB limit. This Compose configuration provides HTTP only; for public EC2 deployments, terminate HTTPS at an HTTPS-enabled load balancer or configure TLS for Nginx, and restrict inbound traffic with security groups.
 
+The `POST /documents` multipart form accepts an optional `semantic_chunking` boolean alongside `file`. Send `true` to use semantic chunking for that upload or `false` to use fixed-size chunking. If omitted, the server uses `CHUNKING_STRATEGY` from its environment. For example:
+
+```sh
+curl -F 'file=@document.pdf' -F 'semantic_chunking=false' http://localhost/documents
+```
+
+Turning semantic chunking off skips the extra per-sentence embedding calls, which can reduce Gemini quota usage and ingestion time. The resulting fixed-size chunks still need embeddings for vector search, so this does not remove all Gemini embedding requests.
+
 For incremental answers, send the same JSON body to `POST /questions/stream`:
 `{"question":"...","document_id":"optional-selected-document-id"}`. The response is
 `text/event-stream` with `answer_chunk` events (`{"text":"..."}`), followed by a `citations`
@@ -42,9 +50,9 @@ Run tests with `.venv/bin/pytest`.
 
 PDFs use semantic chunking by default: adjacent sentences are grouped by Gemini embedding
 similarity, with `CHUNK_SIZE`, `CHUNK_OVERLAP`, and `SEMANTIC_BREAKPOINT_PERCENTILE` controlling
-boundaries. Set `CHUNKING_STRATEGY=fixed` in `.env` to use the original fixed-size chunking.
-Embedding inputs are sent in batches of up to 100 and scheduled at 90 requests per minute by
-default to stay below the observed Gemini free-tier request limit. Both values are configurable
+boundaries. Set `CHUNKING_STRATEGY=fixed` in `.env` to use fixed-size chunking by default; the
+per-upload `semantic_chunking` form field can override this default. Embedding inputs are sent in
+batches of up to 100 and scheduled at 30 requests per minute by default. Both values are configurable
 with `EMBEDDING_BATCH_SIZE` (maximum 100) and `EMBEDDING_REQUESTS_PER_MINUTE` (maximum 99).
 Quota exhaustion that still occurs returns HTTP 429; wait for the quota window to reset or review
 Gemini rate limits and billing. Larger quotas may be available depending on the Gemini project and

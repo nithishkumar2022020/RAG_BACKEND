@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from google.genai.errors import ClientError
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
@@ -63,6 +63,7 @@ def upload_document(
     file: Annotated[UploadFile, File()],
     settings: Annotated[Settings, Depends(get_settings)],
     rag: Annotated[RagService, Depends(get_rag_service)],
+    semantic_chunking: Annotated[bool | None, Form()] = None,
 ) -> IngestResponse:
     filename = Path(file.filename or "").name
     content = file.file.read(settings.max_upload_bytes + 1)
@@ -77,7 +78,12 @@ def upload_document(
     try:
         storage = create_document_storage(settings)
         storage.save(document_id, content)
-        count = rag.ingest(document_id, filename, pages)
+        count = rag.ingest(
+            document_id,
+            filename,
+            pages,
+            semantic_chunking=semantic_chunking,
+        )
     except Exception as error:
         if isinstance(error, ClientError) and error.code == 429:
             logger.warning("Gemini quota exhausted during document ingestion")
