@@ -94,6 +94,8 @@ pipeline; the later sections cover deploying and operating it.
 - [ ] **POST-based streaming clients** — Why this endpoint uses a JSON POST and why native browser `EventSource` alone is not suitable for that request shape.
 - [ ] **Incremental UI updates** — Reading partial answer events, appending text, and handling final citations and error events on the client.
 - [ ] **Streaming error timing** — Why an error after response headers have been sent must be represented as a stream event instead of a new HTTP status.
+- [ ] **Background jobs and polling** — Returning an accepted job ID quickly, processing long-running work outside the request, and polling a status endpoint until completion.
+- [ ] **In-memory queue limitations** — Worker concurrency, queue backpressure, process-local job state, and why durable jobs need a database or external queue.
 - [ ] **Flutter client basics** — Where a Flutter app fits as an API consumer and the need for an HTTP client capable of reading a POST response stream.
 
 ## 8. Storage and persistence
@@ -134,6 +136,8 @@ pipeline; the later sections cover deploying and operating it.
 - [ ] **Test doubles and interface drift** — Keeping fakes aligned with production method parameters when the service interface changes.
 - [ ] **Linting with Ruff** — Finding style and common code issues automatically.
 - [ ] **Continuous Integration (CI)** — Running checks on proposed changes through GitHub Actions.
+- [ ] **Docs-as-code and static site generation** — Keeping documentation in versioned Markdown and generating a navigable HTML site with MkDocs Material.
+- [ ] **GitHub Pages publishing** — Building a static site artifact in CI and publishing it with GitHub Actions permissions and environments.
 - [ ] **Workflow triggers and status checks** — Pull-request/push triggers, job names, and making checks required through GitHub branch protection.
 - [ ] **Branch-based continuous deployment (CD)** — Using branch-specific jobs to deploy validated commits to distinct environments.
 - [ ] **Self-hosted GitHub Actions runners** — Running automation on a laptop, runner labels, availability requirements, and the security risk of executing repository code on a personal machine.

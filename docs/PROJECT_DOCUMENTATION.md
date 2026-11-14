@@ -218,11 +218,17 @@ The endpoint:
 - accepts an optional `semantic_chunking` boolean form field to choose semantic or fixed-size chunking for that upload; if omitted, `CHUNKING_STRATEGY` is used
 - validates the filename extension
 - reads raw content up to the configured upload limit
-- calls `validate_pdf_upload()`
-- verifies the PDF contains extractable text
+- queues PDF parsing and embedding in a background worker
 - generates a unique `document_id`
-- saves the original PDF using the configured local or R2 document storage backend
-- calls `RagService.ingest()`
+- saves the original PDF using the configured local or R2 document storage backend in the worker
+- calls `RagService.ingest()` in the worker
+
+The request returns `202 Accepted` with a `job_id` immediately. Poll
+`GET /documents/{job_id}` to check for `queued`, `processing`, `completed`, or `failed`. A
+completed job includes its `document_id` and chunk count; a failed job has a safe `detail`
+message. The client should not wait for ingestion to finish as part of the upload HTTP request.
+The current job queue and statuses are in process memory, limited to one running and one queued
+upload. A process restart loses job statuses and stops in-flight work.
 
 The PDF validation and extraction logic is implemented in `app/services/pdf_ingestion.py`.
 
@@ -361,18 +367,28 @@ Response model:
 
 ```json
 {
+  "job_id": "<uuid>",
   "document_id": "<uuid>",
   "filename": "example.pdf",
-  "chunks": 12
+  "status": "queued",
+  "chunks": null,
+  "detail": null
 }
 ```
+
+The endpoint responds with `202 Accepted`. Poll `GET /documents/{job_id}` for the latest
+`queued`, `processing`, `completed`, or `failed` status. On completion, `chunks` contains the
+indexed chunk count. On failure, `detail` contains a user-safe explanation.
+
+The job queue is process-local, with one active worker and one queued job; a full queue returns
+HTTP 429 and a `Retry-After` header. Status entries are also process-local and are lost on restart.
+The client should poll status rather than setting a very long timeout on the upload request.
 
 Behavior:
 
 - rejects non-PDF files
 - rejects files above the configured `MAX_UPLOAD_BYTES`
-- rejects password-protected or malformed PDFs
-- rejects PDFs with no extractable text
+- reports password-protected, malformed, or text-empty PDFs as failed ingestion jobs
 
 ### 9.3 `POST /questions`
 

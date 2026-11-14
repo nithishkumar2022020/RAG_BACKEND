@@ -14,13 +14,14 @@ This starts Nginx on `http://localhost`, which proxies requests to the private F
 
 The Nginx proxy supports streaming responses from `POST /questions/stream` and allows uploads up to 21 MiB to accommodate the API's 20 MiB limit. This Compose configuration provides HTTP only; for public EC2 deployments, terminate HTTPS at an HTTPS-enabled load balancer or configure TLS for Nginx, and restrict inbound traffic with security groups.
 
-The `POST /documents` multipart form accepts an optional `semantic_chunking` boolean alongside `file`. Send `true` to use semantic chunking for that upload or `false` to use fixed-size chunking. If omitted, the server uses `CHUNKING_STRATEGY` from its environment. For example:
+The `POST /documents` multipart form accepts an optional `semantic_chunking` boolean alongside `file`. Send `true` to use semantic chunking for that upload or `false` to use fixed-size chunking. If omitted, the server uses `CHUNKING_STRATEGY` from its environment. Upload now returns `202 Accepted` with a `job_id` immediately; poll `GET /documents/{job_id}` until its status is `completed` or `failed`, rather than holding the upload request open while Gemini processes a large PDF:
 
 ```sh
 curl -F 'file=@document.pdf' -F 'semantic_chunking=false' http://localhost/documents
+curl http://localhost/documents/<job_id>
 ```
 
-Turning semantic chunking off skips the extra per-sentence embedding calls, which can reduce Gemini quota usage and ingestion time. The resulting fixed-size chunks still need embeddings for vector search, so this does not remove all Gemini embedding requests.
+The job status response includes the generated `document_id`; use it to query the document after ingestion completes. Turning semantic chunking off skips the extra per-sentence embedding calls, which can reduce Gemini quota usage and ingestion time. The resulting fixed-size chunks still need embeddings for vector search, so this does not remove all Gemini embedding requests. Job status is held in the API process memory and is lost if the process/container restarts; don't restart the API while a large ingestion is running.
 
 For incremental answers, send the same JSON body to `POST /questions/stream`:
 `{"question":"...","document_id":"optional-selected-document-id"}`. The response is
@@ -74,6 +75,19 @@ PyMuPDF is AGPL-3.0 or commercially licensed; review its terms before distributi
 A detailed project overview, architecture notes, API flow, and implementation details are available in [docs/PROJECT_DOCUMENTATION.md](docs/PROJECT_DOCUMENTATION.md).
 
 A theory-first list of concepts to learn in order to understand and maintain this codebase is available in [docs/LEARNING_ROADMAP.md](docs/LEARNING_ROADMAP.md). This is the project's running learning list and will be extended as new concepts are introduced.
+
+### Documentation website
+
+The Markdown docs are presented as a searchable, responsive site using MkDocs Material and GitHub Pages. After enabling Pages with **GitHub Actions** as the source, the site is published from `main` at <https://nithishkumar2022020.github.io/RAG_BACKEND/>.
+
+To preview the docs locally:
+
+```sh
+python -m pip install -e '.[docs]'
+python -m mkdocs serve
+```
+
+Open the local URL printed by MkDocs (normally `http://127.0.0.1:8000`). The generated `site/` directory is a build artifact and should not be edited or committed.
 
 ## Continuous integration
 
