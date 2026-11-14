@@ -77,4 +77,27 @@ A theory-first list of concepts to learn in order to understand and maintain thi
 
 ## Continuous integration
 
-GitHub Actions runs Ruff and the pytest suite on pull requests targeting `main` and on pushes to `main`. To require these checks before merging, enable branch protection for `main` in GitHub and require the **Python checks** status check.
+GitHub Actions runs Ruff and pytest on pushes to `main` and `develop`, and on pull requests targeting either branch. Pull requests only run checks; deployment jobs run only after successful checks on branch pushes:
+
+- A push to `main` deploys the checked commit to EC2 over SSH and rebuilds the Docker Compose stack.
+- A push to `develop` deploys the checked commit to this laptop through a self-hosted GitHub Actions runner.
+
+### Configure the EC2 deployment
+
+Create a GitHub Actions environment named `production` and add these environment secrets:
+
+- `EC2_HOST`: the EC2 public DNS name or IP reachable from GitHub-hosted runners.
+- `EC2_USER`: a dedicated EC2 deployment user.
+- `EC2_SSH_PRIVATE_KEY`: the private key for that deployment user.
+- `EC2_KNOWN_HOSTS`: the verified SSH host-key line for the EC2 host; do not trust an unverified key scan.
+- `EC2_DEPLOY_PATH`: an absolute path to a clean clone of this repository on EC2.
+
+On EC2, install Docker Engine, the Docker Compose plugin, Git, and curl. Set up the deployment user's SSH key to read this private GitHub repository, clone it into `EC2_DEPLOY_PATH`, and create the production `.env` there with the required Gemini, Milvus/Zilliz, and optional R2 settings. The workflow fetches the pushed `main` commit, checks it out, runs `docker compose up -d --build --remove-orphans`, and checks `http://127.0.0.1/health`. Keep `.env` out of Git and preserve the Compose volumes. Ensure EC2's network rules allow SSH from the chosen GitHub Actions runner and expose only the required web ports publicly. For a public service, configure HTTPS at a trusted load balancer or TLS-enabled proxy and use that HTTPS domain in the client.
+
+### Configure the laptop `develop` deployment
+
+Install a GitHub self-hosted runner on the laptop, restricted to this repository, and give it the custom label `rag-laptop` (the workflow also requires the `macOS` label). Run the runner as the same user that can access Docker Desktop. Keep the laptop awake and the runner online for deployments. In a GitHub Actions environment named `development`, set the variable `RAG_DEV_ENV_FILE` to the absolute path of the laptop's local `.env` file. The runner copies this file into its temporary checkout for Compose and removes the copy after deployment; the source `.env` is not committed.
+
+The local job uses Compose project name `rag` to reuse this project's existing named volumes, rebuilds the stack, and checks `http://localhost/health`. The local client should use `http://localhost` through Nginx; the production client should use the EC2 HTTPS domain. Configure those client base URLs in the client/environment configuration—the backend deployment workflow does not rewrite a separate Flutter app's API URL. The backend can still use its own configured Milvus and Gemini endpoints; the client's `localhost` URL is not the Milvus address.
+
+Only trusted pushes to `develop` execute code on the laptop runner; never run untrusted pull-request code there. Protect `main` and `develop` with appropriate branch rules, and require **Python checks** for merges. The `develop` branch must exist on GitHub before its deployment job can run. Deployments do not add API authentication or TLS by themselves.

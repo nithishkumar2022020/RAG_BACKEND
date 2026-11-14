@@ -135,6 +135,11 @@ pipeline; the later sections cover deploying and operating it.
 - [ ] **Linting with Ruff** — Finding style and common code issues automatically.
 - [ ] **Continuous Integration (CI)** — Running checks on proposed changes through GitHub Actions.
 - [ ] **Workflow triggers and status checks** — Pull-request/push triggers, job names, and making checks required through GitHub branch protection.
+- [ ] **Branch-based continuous deployment (CD)** — Using branch-specific jobs to deploy validated commits to distinct environments.
+- [ ] **Self-hosted GitHub Actions runners** — Running automation on a laptop, runner labels, availability requirements, and the security risk of executing repository code on a personal machine.
+- [ ] **SSH deployment and host-key verification** — Authenticating to EC2 using a scoped key and verifying the server identity rather than blindly trusting a network scan.
+- [ ] **GitHub Environments and scoped secrets** — Separating production/development variables and credentials from committed workflow files.
+- [ ] **Deployment concurrency and health checks** — Preventing overlapping releases and checking service readiness after a deployment.
 - [ ] **Git branches, diffs, and staged changes** — Reviewing exactly what a change will include before committing or pushing.
 - [ ] **Reproducible dependency setup** — Installing the same declared project and development dependencies in a clean CI environment.
 

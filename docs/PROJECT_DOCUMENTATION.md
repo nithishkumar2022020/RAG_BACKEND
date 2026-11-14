@@ -149,14 +149,14 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-This builds and starts the FastAPI container. The API will be served at:
+This builds the FastAPI container and the Nginx reverse proxy. The API is served through Nginx at:
 
-- Swagger UI: `http://localhost:8000/docs`
-- Health check: `http://localhost:8000/health`
+- Swagger UI: `http://localhost/docs`
+- Health check: `http://localhost/health`
 
 The container receives application configuration from `.env`. `.env` is excluded from the Docker
 build context and is not copied into the image. Local original PDFs are persisted in the named
-`app_data` volume. View logs with `docker compose logs -f api` and stop containers with
+`app_data` volume. View logs with `docker compose logs -f api nginx` and stop containers with
 `docker compose down`.
 
 The default setup targets the configured hosted Zilliz endpoint. To use the optional local Milvus
@@ -178,6 +178,33 @@ For non-containerized development, use `.venv/bin/pip install -e '.[dev]'` and
 ```bash
 .venv/bin/pytest
 ```
+
+### 7.4 Branch-based CI and deployment
+
+The GitHub Actions workflow runs Ruff and pytest on pushes to `main` and `develop` and pull
+requests targeting either branch. Successful pushes deploy by branch:
+
+- `main` connects to EC2 over SSH, fetches and checks out the pushed commit, rebuilds the Compose
+  stack, and checks the Nginx health endpoint.
+- `develop` uses a repository-restricted, macOS self-hosted runner labeled `rag-laptop` to rebuild
+  and restart the local Compose stack. It uses Compose project name `rag` to keep the current local
+  named volumes.
+
+The production GitHub environment needs `EC2_HOST`, `EC2_USER`, `EC2_SSH_PRIVATE_KEY`,
+`EC2_KNOWN_HOSTS`, and `EC2_DEPLOY_PATH` secrets. EC2 must have Docker Compose, Git, curl, a clean
+repository checkout, a production `.env`, and a separate SSH key that can read the private repo.
+Validate the EC2 host key before storing it in `EC2_KNOWN_HOSTS`. The GitHub-hosted runner must be
+able to reach EC2 over SSH.
+
+The laptop runner must be online and able to access Docker Desktop. Set the GitHub `development`
+environment variable `RAG_DEV_ENV_FILE` to the absolute path of the laptop's local `.env`; the
+workflow copies it into the checkout for Compose and removes that copy after the run. Only trusted
+pushes deploy to this runner; pull requests run checks on GitHub-hosted runners and never run code
+on the laptop.
+
+The client uses `http://localhost` for the laptop stack and the public HTTPS domain for production.
+This client API URL is distinct from the backend's `MILVUS_URI`, which configures vector database
+connectivity. TLS and authentication must be configured separately from this deployment workflow.
 
 ## 8. Data flow and processing details
 
