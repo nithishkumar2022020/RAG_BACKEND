@@ -65,6 +65,8 @@ PyMuPDF is AGPL-3.0 or commercially licensed; review its terms before distributi
 
 A detailed project overview, architecture notes, API flow, and implementation details are available in [docs/PROJECT_DOCUMENTATION.md](docs/PROJECT_DOCUMENTATION.md).
 
+A theory-first list of concepts to learn in order to understand and maintain this codebase is available in [docs/LEARNING_ROADMAP.md](docs/LEARNING_ROADMAP.md). This is the project's running learning list and will be extended as new concepts are introduced.
+
 ## Continuous integration
 
 GitHub Actions runs Ruff and the pytest suite on pull requests targeting `main` and on pushes to `main`. To require these checks before merging, enable branch protection for `main` in GitHub and require the **Python checks** status check.
