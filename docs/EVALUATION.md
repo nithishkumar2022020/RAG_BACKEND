@@ -106,6 +106,56 @@ Use invented example content only. Each document has a stable fixture ID, filena
 page-level text. Offline mode additionally uses fixed vectors for predictable dense ranking;
 live mode ignores those fixture vectors and generates embeddings.
 
+### Current fixture set
+
+The checked-in dataset contains **2 fictional documents**, represented by **5 page-level
+text fixtures**, and **6 questions**:
+
+| Fixture document | Pages | Topics |
+|---|---:|---|
+| `aurora_forge_operations.pdf` | 3 | Solar generation, rainwater use, and battery temperature safety. |
+| `northstar_clinic_guide.pdf` | 2 | New-patient appointments, first-visit requirements, and weekday opening hours. |
+
+The questions test solar output, rainwater use, battery over-temperature response, what a new
+patient should bring, weekday opening time, and which document describes new-patient
+appointments. Five cases target a fact in one document; the last checks selection across both
+documents.
+
+Each case includes the allowed document IDs, a fixed query vector for deterministic offline
+dense ranking, one or more graded relevant pages (relevance 1–3), a reference answer, and
+expected citation page pairs. The fixed vectors are test fixtures, not production embeddings.
+Offline mode evaluates retrieval and citations only—it does not generate or score answer
+text. Live mode additionally compares generated answer tokens with the reference.
+
+### Initial offline baseline
+
+The checked-in baseline uses **top K = 5**, **20 candidates**, and **RRF K = 60**:
+
+| Metric | Baseline |
+|---|---:|
+| Hit Rate@5 | 1.000 |
+| Recall@5 | 1.000 |
+| MRR@5 | 0.917 |
+| nDCG@5 | 0.938 |
+| Citation precision | 0.367 |
+| Citation recall | 1.000 |
+| Citation F1 | 0.528 |
+
+This is a small synthetic starter set, not a production-quality target. Citation precision/F1
+is especially conservative because extra retrieved pages can be cited even when only one page
+is annotated as expected. Check per-case results and the quality of gold labels before
+interpreting aggregate changes or updating the baseline.
+
+## Evaluator tests
+
+The focused suite in [`tests/test_evaluation.py`](https://github.com/nithishkumar2022020/RAG_BACKEND/blob/main/tests/test_evaluation.py)
+currently contains **11 tests**. It checks retrieval and citation/token metric calculations,
+metric aggregation, deterministic coverage of all six offline cases, report metadata and the
+absence of cloud-client construction in offline mode, live-mode credential and collection
+safeguards, rejection of an empty dataset, and baseline delta/cutoff compatibility behavior.
+The last focused run completed with **11 passed**. CI runs the offline evaluation against the
+checked-in baseline; no live Gemini or Milvus calls are made by that evaluation check.
+
 Each case should include:
 
 - a unique `id` and representative question

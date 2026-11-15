@@ -181,20 +181,22 @@ For non-containerized development, use `.venv/bin/pip install -e '.[dev]'` and
 
 ### 7.4 Branch-based CI and deployment
 
-The GitHub Actions workflow runs Ruff and pytest on pushes to `main` and `develop` and pull
-requests targeting either branch. Successful pushes deploy by branch:
+The GitHub Actions workflow runs Ruff, pytest, and the offline RAG evaluation on pushes to
+`main` and `develop` and pull requests targeting either branch. Successful pushes act by branch:
 
-- `main` connects to EC2 over SSH, fetches and checks out the pushed commit, rebuilds the Compose
-  stack, and checks the Nginx health endpoint.
+- `main` builds the API Docker image and pushes it to GitHub Container Registry (GHCR), tagged
+  with the commit SHA and `latest`. This job publishes the artifact only; it does not
+  connect to EC2 or restart a service.
 - `develop` uses a repository-restricted, macOS self-hosted runner labeled `rag-laptop` to rebuild
   and restart the local Compose stack. It uses Compose project name `rag` to keep the current local
   named volumes.
 
-The production GitHub environment needs `EC2_HOST`, `EC2_USER`, `EC2_SSH_PRIVATE_KEY`,
-`EC2_KNOWN_HOSTS`, and `EC2_DEPLOY_PATH` secrets. EC2 must have Docker Compose, Git, curl, a clean
-repository checkout, a production `.env`, and a separate SSH key that can read the private repo.
-Validate the EC2 host key before storing it in `EC2_KNOWN_HOSTS`. The GitHub-hosted runner must be
-able to reach EC2 over SSH.
+The GHCR job uses the automatically provided `GITHUB_TOKEN` with job-scoped `packages: write`
+permission; it needs no AWS credentials or registry-specific repository variables. The image is
+published as `ghcr.io/<owner>/<repository>:<commit-sha>` and `:latest`. Configure the package
+visibility and repository access in GitHub's package settings. EC2 or another runtime must
+separately pull and run the published image; for a private package, configure that runtime with
+read access to the package. The CI job does not deploy it.
 
 The laptop runner must be online and able to access Docker Desktop. Set the GitHub `development`
 environment variable `RAG_DEV_ENV_FILE` to the absolute path of the laptop's local `.env`; the
