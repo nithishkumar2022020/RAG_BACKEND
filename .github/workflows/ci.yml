@@ -58,14 +58,14 @@ jobs:
         run: mkdocs build --strict
 
       - name: Upload Pages artifact
-        if: github.event_name == 'push' && github.ref == github.ref == ('refs/heads/main' || 'refs/heads/develop')
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
   deploy-docs:
     name: Publish documentation to GitHub Pages
-    if: github.event_name == 'push' && github.ref == ('refs/heads/main' || 'refs/heads/develop')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     needs: [python-checks, docs-build]
     runs-on: ubuntu-latest
     permissions:
