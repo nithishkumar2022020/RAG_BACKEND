@@ -122,6 +122,89 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  deploy-ec2:
+    name: Deploy main image to EC2
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: publish-ghcr
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production-ec2
+      cancel-in-progress: false
+    steps:
+      - name: Validate deployment configuration
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_DEPLOY_PATH: ${{ secrets.EC2_DEPLOY_PATH }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "$EC2_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "Invalid EC2_HOST"; exit 1; }
+          [[ "$EC2_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || { echo "Invalid EC2_USER"; exit 1; }
+          [[ "$EC2_DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ && "$EC2_DEPLOY_PATH" != *".."* ]] || { echo "Invalid EC2_DEPLOY_PATH"; exit 1; }
+          [[ "$GHCR_USERNAME" =~ ^[A-Za-z0-9-]+$ ]] || { echo "Invalid GHCR_USERNAME"; exit 1; }
+          [[ -n "$GHCR_READ_TOKEN" && -n "$EC2_SSH_PRIVATE_KEY" && -n "$EC2_KNOWN_HOSTS" ]] || { echo "Configure GHCR_READ_TOKEN, EC2_SSH_PRIVATE_KEY, and EC2_KNOWN_HOSTS in the production environment"; exit 1; }
+
+      - name: Prepare SSH credentials
+        env:
+          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$EC2_SSH_PRIVATE_KEY" > "$HOME/.ssh/ec2_deploy_key"
+          chmod 600 "$HOME/.ssh/ec2_deploy_key"
+          printf '%s\n' "$EC2_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Log in to GHCR on EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_READ_TOKEN" | ssh \
+            -i "$HOME/.ssh/ec2_deploy_key" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            "$EC2_USER@$EC2_HOST" \
+            "docker login ghcr.io --username '$GHCR_USERNAME' --password-stdin"
+
+      - name: Pull and run the published image
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_DEPLOY_PATH: ${{ secrets.EC2_DEPLOY_PATH }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh \
+            -i "$HOME/.ssh/ec2_deploy_key" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            "$EC2_USER@$EC2_HOST" \
+            "bash -s -- '$EC2_DEPLOY_PATH' '$DEPLOY_SHA'" <<'REMOTE'
+          set -euo pipefail
+          deploy_path="$1"
+          deploy_sha="$2"
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+          cd "$deploy_path"
+          git fetch origin main
+          git checkout --detach "$deploy_sha"
+          test -r .env || { echo "Missing deployment .env file"; exit 1; }
+          IMAGE_TAG="$deploy_sha" docker compose pull api
+          IMAGE_TAG="$deploy_sha" docker compose up -d --no-build --remove-orphans
+          curl --fail --retry 10 --retry-connrefused --retry-delay 3 http://127.0.0.1/health
+          REMOTE
+
   deploy-laptop:
     name: Deploy develop to laptop
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'

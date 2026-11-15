@@ -147,10 +147,11 @@ pipeline; the later sections cover deploying and operating it.
 - [ ] **GitHub Pages publishing** — Building a static site artifact in CI and publishing it with GitHub Actions permissions and environments.
 - [ ] **Workflow triggers and status checks** — Pull-request/push triggers, job names, and making checks required through GitHub branch protection.
 - [ ] **Branch-based continuous deployment (CD)** — Using branch-specific jobs to deploy validated commits to distinct environments.
-- [ ] **Self-hosted GitHub Actions runners** — Running automation on a laptop, runner labels, availability requirements, and the security risk of executing repository code on a personal machine.
 - [ ] **GitHub Container Registry (GHCR)** — Publishing Docker images as GitHub packages, managing package visibility/access, and authenticating image pulls.
 - [ ] **GitHub Actions `GITHUB_TOKEN` permissions** — Granting the workflow only the `packages: write` permission needed to publish a container image.
 - [ ] **Container image publishing versus deployment** — Building/tagging/pushing an image is separate from changing the image running on EC2.
+- [ ] **SSH-based CI/CD deployment** — Using a pinned SSH host key and a restricted deployment key to run a release on EC2.
+- [ ] **Immutable image tags** — Deploying a commit-SHA image rather than relying on a mutable `latest` tag.
 - [ ] **GitHub Environments and scoped secrets** — Separating production/development variables and credentials from committed workflow files.
 - [ ] **Deployment concurrency and health checks** — Preventing overlapping releases and checking service readiness after a deployment.
 - [ ] **Git branches, diffs, and staged changes** — Reviewing exactly what a change will include before committing or pushing.

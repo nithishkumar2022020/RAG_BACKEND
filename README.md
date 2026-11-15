@@ -41,7 +41,7 @@ python -m mkdocs serve
 
 ## CI and publishing
 
-GitHub Actions runs lint, tests, and offline evaluation on pushes and pull requests to `main` and `develop`. A push to `main` publishes the container image to GHCR; a push to `develop` deploys through the configured self-hosted runner. See the [deployment guide](https://nithishkumar2022020.github.io/RAG_BACKEND/PROJECT_DOCUMENTATION/) for setup details.
+GitHub Actions runs lint, tests, and offline evaluation on pushes and pull requests to `main` and `develop`. A push to `main` publishes the container image to GHCR and deploys it to EC2; a push to `develop` deploys to the laptop self-hosted runner and publishes the documentation site. See the [deployment guide](https://nithishkumar2022020.github.io/RAG_BACKEND/PROJECT_DOCUMENTATION/) for setup details.
 
 ## License note
 
