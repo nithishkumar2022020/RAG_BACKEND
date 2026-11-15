@@ -130,7 +130,7 @@ jobs:
     environment: development
     concurrency:
       group: deploy-development-laptop
-      cancel-in-progress: false
+      cancel-in-progress: true
     steps:
       - name: Check out pushed commit
         uses: actions/checkout@v4
