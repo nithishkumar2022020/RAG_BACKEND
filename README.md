@@ -76,9 +76,33 @@ A detailed project overview, architecture notes, API flow, and implementation de
 
 A theory-first list of concepts to learn in order to understand and maintain this codebase is available in [docs/LEARNING_ROADMAP.md](docs/LEARNING_ROADMAP.md). This is the project's running learning list and will be extended as new concepts are introduced.
 
+### RAG evaluation
+
+The checked-in fictional golden dataset can be evaluated offline without Gemini credentials, Milvus, network access, or real user documents:
+
+```sh
+python -m app.evaluation --mode offline
+```
+
+By default, the JSON report is written to the ignored `eval-results/latest.json`. Compare with the checked-in initial baseline (same dataset and `--top-k` cutoff required):
+
+```sh
+python -m app.evaluation --mode offline --output eval-results/current.json \
+  --compare evaluation/baseline.json
+```
+
+Offline metrics include retrieval Hit Rate/Recall@K, MRR, nDCG@K, and citation precision/recall. The live mode uses Gemini and Milvus, creates a temporary uniquely named `rag_eval_*` collection, indexes only the fictional fixture corpus, evaluates answers, then drops that collection:
+
+```sh
+python -m app.evaluation --mode live --output eval-results/live.json
+python -m app.evaluation --mode live --judge --output eval-results/live-judged.json
+```
+
+Live mode requires the configured Gemini and Milvus credentials and may consume API quota. The optional `--judge` makes additional Gemini calls. Reports include answer token precision/recall/F1 and stage timings; a judge can add faithfulness/relevance scores. Never put real documents, secrets, or sensitive outputs in the checked-in golden dataset or commit generated reports. See the [evaluation guide](docs/EVALUATION.md) for metric definitions and how to extend the dataset.
+
 ### Documentation website
 
-The Markdown docs are presented as a searchable, responsive site using MkDocs Material and GitHub Pages. After enabling Pages with **GitHub Actions** as the source, the site is published from `main` at <https://nithishkumar2022020.github.io/RAG_BACKEND/>.
+The Markdown docs are presented as a searchable, responsive site using MkDocs Material and GitHub Pages. After enabling Pages with **GitHub Actions** as the source, a successful push to `develop` publishes the site at <https://nithishkumar2022020.github.io/RAG_BACKEND/>. The docs build is checked on both branches, but `develop` is the canonical publishing branch so an older `main` commit cannot overwrite newer docs. Pages stays available between pushes; each successful `develop` push republishes the latest docs.
 
 To preview the docs locally:
 

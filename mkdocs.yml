@@ -31,6 +31,7 @@ nav:
   - Home: index.md
   - Project guide: PROJECT_DOCUMENTATION.md
   - Learning roadmap: LEARNING_ROADMAP.md
+  - Evaluation guide: EVALUATION.md
 
 markdown_extensions:
   - admonition

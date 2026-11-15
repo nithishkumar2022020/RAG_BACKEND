@@ -34,6 +34,9 @@ jobs:
       - name: Run tests
         run: pytest
 
+      - name: Run offline RAG evaluation
+        run: python -m app.evaluation --mode offline --output eval-results/ci.json --compare evaluation/baseline.json
+
   docs-build:
     name: Documentation build
     runs-on: ubuntu-latest
@@ -55,14 +58,14 @@ jobs:
         run: mkdocs build --strict
 
       - name: Upload Pages artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
   deploy-docs:
     name: Publish documentation to GitHub Pages
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     needs: [python-checks, docs-build]
     runs-on: ubuntu-latest
     permissions:

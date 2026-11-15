@@ -131,6 +131,13 @@ pipeline; the later sections cover deploying and operating it.
 
 ## 11. Testing, CI, and Git
 
+- [ ] **Golden datasets and evaluation cases** — Curated questions, references, graded relevant context, and citations used as repeatable quality tests.
+- [ ] **Information retrieval metrics** — Hit Rate/Recall@K, Mean Reciprocal Rank, and normalized Discounted Cumulative Gain for ranking results.
+- [ ] **Answer token precision/recall/F1** — A simple overlap metric for comparing generated answers with reference answers, including its limitations.
+- [ ] **Citation precision and recall** — Measuring whether cited document pages match the curated supporting pages.
+- [ ] **LLM-as-judge evaluation** — Using a model to estimate faithfulness/relevance, with added cost, prompt sensitivity, and score variability.
+- [ ] **Evaluation baselines and reports** — Saving per-case and aggregate metrics with code/config metadata to compare changes across runs.
+- [ ] **Live versus offline evaluation** — Separating deterministic no-network regression tests from provider-backed end-to-end runs.
 - [ ] **Unit and API tests with pytest** — Testing chunking, retrieval, endpoint behavior, and response contracts.
 - [ ] **Mocks and fakes** — Replacing Gemini, Milvus, or service objects in tests so tests do not need real cloud credentials.
 - [ ] **Test doubles and interface drift** — Keeping fakes aligned with production method parameters when the service interface changes.
