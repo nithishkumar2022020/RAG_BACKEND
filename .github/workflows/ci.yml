@@ -200,8 +200,18 @@ jobs:
           git fetch origin main
           git checkout --detach "$deploy_sha"
           test -r .env || { echo "Missing deployment .env file"; exit 1; }
-          IMAGE_TAG="$deploy_sha" docker compose pull api
-          IMAGE_TAG="$deploy_sha" docker compose up -d --no-build --remove-orphans
+          compose=(docker compose -f "$deploy_path/docker-compose.yml" --project-directory "$deploy_path")
+          IMAGE_TAG="$deploy_sha" "${compose[@]}" pull api
+          IMAGE_TAG="$deploy_sha" "${compose[@]}" up -d --no-build --remove-orphans
+          IMAGE_TAG="$deploy_sha" "${compose[@]}" up -d --no-build --no-deps --force-recreate nginx
+          if ! published_port=$(APP_ENV=production IMAGE_TAG="$deploy_sha" "${compose[@]}" port nginx 80); then
+            echo "ERROR: Could not determine the published host port for Nginx container port 80."
+            exit 1
+          fi
+          if [[ ! "$published_port" =~ (^|:)80$ ]]; then
+            echo "ERROR: Nginx container port 80 must publish to host port 80; got '${published_port:-no mapping}'."
+            exit 1
+          fi
           curl --fail --retry 10 --retry-connrefused --retry-delay 3 http://127.0.0.1/health
           REMOTE
 
