@@ -1,5 +1,6 @@
 services:
   api:
+    image: ghcr.io/nithishkumar2022020/rag_backend:${IMAGE_TAG:-latest}
     build:
       context: .
     env_file:

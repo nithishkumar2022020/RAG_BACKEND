@@ -181,30 +181,49 @@ For non-containerized development, use `.venv/bin/pip install -e '.[dev]'` and
 
 ### 7.4 Branch-based CI and deployment
 
-The GitHub Actions workflow runs Ruff and pytest on pushes to `main` and `develop` and pull
-requests targeting either branch. Successful pushes deploy by branch:
+The GitHub Actions workflow runs Ruff, pytest, and the offline RAG evaluation on pushes to
+`main` and `develop` and pull requests targeting either branch. Successful pushes act by branch:
 
-- `main` connects to EC2 over SSH, fetches and checks out the pushed commit, rebuilds the Compose
-  stack, and checks the Nginx health endpoint.
-- `develop` uses a repository-restricted, macOS self-hosted runner labeled `rag-laptop` to rebuild
-  and restart the local Compose stack. It uses Compose project name `rag` to keep the current local
-  named volumes.
+- `main` builds and pushes the API image to GitHub Container Registry (GHCR), tagged with the
+  commit SHA and `latest`, then deploys that exact SHA-tagged image to EC2. Pull requests do not
+  publish or deploy.
+- `develop` deploys the current source to the laptop through the `rag-laptop` self-hosted runner
+  and publishes the documentation website. Pull requests do not deploy.
 
-The production GitHub environment needs `EC2_HOST`, `EC2_USER`, `EC2_SSH_PRIVATE_KEY`,
-`EC2_KNOWN_HOSTS`, and `EC2_DEPLOY_PATH` secrets. EC2 must have Docker Compose, Git, curl, a clean
-repository checkout, a production `.env`, and a separate SSH key that can read the private repo.
-Validate the EC2 host key before storing it in `EC2_KNOWN_HOSTS`. The GitHub-hosted runner must be
-able to reach EC2 over SSH.
+The image name is `ghcr.io/nithishkumar2022020/rag_backend`. The publishing job uses the
+automatically provided `GITHUB_TOKEN` with job-scoped `packages: write` permission. The EC2 job
+connects over SSH, authenticates to GHCR, checks out the matching `main` commit for Compose and
+Nginx configuration, pulls the immutable commit-tagged API image, and restarts Compose without
+building the image on EC2. It verifies `http://127.0.0.1/health` after the restart.
 
-The laptop runner must be online and able to access Docker Desktop. Set the GitHub `development`
-environment variable `RAG_DEV_ENV_FILE` to the absolute path of the laptop's local `.env`; the
-workflow copies it into the checkout for Compose and removes that copy after the run. Only trusted
-pushes deploy to this runner; pull requests run checks on GitHub-hosted runners and never run code
-on the laptop.
+Configure these secrets in the GitHub `production` environment:
 
-The client uses `http://localhost` for the laptop stack and the public HTTPS domain for production.
-This client API URL is distinct from the backend's `MILVUS_URI`, which configures vector database
-connectivity. TLS and authentication must be configured separately from this deployment workflow.
+- `EC2_HOST`: the EC2 public DNS name or IP address.
+- `EC2_USER`: the SSH account used for deployment.
+- `EC2_DEPLOY_PATH`: absolute path to the checked-out project on EC2.
+- `EC2_SSH_PRIVATE_KEY`: private key authorized for that EC2 account.
+- `EC2_KNOWN_HOSTS`: pinned SSH host-key entry for the EC2 host.
+- `GHCR_USERNAME`: GitHub username authorized to read the package.
+- `GHCR_READ_TOKEN`: GitHub classic personal access token with `read:packages` scope.
+
+Grant that token's user access to the GHCR package. The deployment job logs in remotely only to
+pull the image and logs out at the end. On EC2, install Docker Engine and the Compose plugin,
+clone this repository into `EC2_DEPLOY_PATH`, configure its `origin` remote so the workflow can
+fetch `main`, and create the runtime `.env` there. The workflow never transfers or overwrites
+`.env`. Ensure the EC2 security group and any fronting proxy permit the required HTTP/HTTPS
+traffic; Compose itself exposes Nginx over HTTP on port 80. TLS and application authentication
+are separate from this deployment workflow.
+
+The Compose API service uses `IMAGE_TAG` to select the GHCR tag. Local Compose runs may continue
+to build from source with `docker compose up --build`; the EC2 deployment sets `IMAGE_TAG` to the
+commit SHA and uses `--no-build`.
+
+The laptop deployment requires a repository-restricted macOS runner with the `rag-laptop` label,
+online and able to access Docker Desktop. Set the GitHub `development` environment variable
+`RAG_DEV_ENV_FILE` to the absolute path of the laptop's local `.env`. The workflow copies that
+file into its checkout for Compose and removes the copy when deployment completes. The laptop
+uses Compose project name `rag` to reuse its existing named volumes; newer `develop` deployments
+cancel older in-progress laptop deployments.
 
 ## 8. Data flow and processing details
 

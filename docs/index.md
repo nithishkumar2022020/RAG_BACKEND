@@ -21,6 +21,14 @@ and what to learn to understand and extend it.
 
     [:octicons-arrow-right-24: Open the learning checklist](LEARNING_ROADMAP.md)
 
+-   :material-chart-box-outline: **RAG evaluation**
+
+    ---
+
+    Compare retrieval and answer quality with offline metrics and optional live runs.
+
+    [:octicons-arrow-right-24: Run the evaluation harness](EVALUATION.md)
+
 </div>
 
 ## What this project does

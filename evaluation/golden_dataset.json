@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "description": "Invented evaluation corpus for repeatable RAG retrieval and answer checks.",
+  "documents": [
+    {
+      "document_id": "eval-aurora-forge",
+      "filename": "aurora_forge_operations.pdf",
+      "pages": [
+        {
+          "page": 1,
+          "text": "Aurora Forge operates a solar microgrid at its coastal workshop. The rooftop array produces 42 megawatt-hours of electricity each year. Solar generation powers the workshop during daylight hours.",
+          "vector": [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        },
+        {
+          "page": 2,
+          "text": "The workshop collects rainwater from its roof in two 5,000-liter cisterns. Filtered rainwater is used for cleaning tools and watering the native garden. Drinking water comes from the municipal supply.",
+          "vector": [0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+        },
+        {
+          "page": 3,
+          "text": "Aurora Forge stores excess electricity in a 120-kilowatt-hour lithium iron phosphate battery. A temperature sensor disconnects the battery if its enclosure exceeds 45 degrees Celsius.",
+          "vector": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
+        }
+      ]
+    },
+    {
+      "document_id": "eval-northstar-clinic",
+      "filename": "northstar_clinic_guide.pdf",
+      "pages": [
+        {
+          "page": 1,
+          "text": "Northstar Clinic schedules new-patient appointments by phone or through its patient portal. Patients should bring photo identification and a list of current medications to their first visit.",
+          "vector": [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        },
+        {
+          "page": 2,
+          "text": "Northstar Clinic opens at 8:30 a.m. Monday through Friday and closes at 5:00 p.m. The clinic is closed on weekends and public holidays.",
+          "vector": [0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "solar-generation",
+      "question": "How much electricity does the rooftop solar array produce?",
+      "document_ids": ["eval-aurora-forge"],
+      "query_vector": [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+      "relevant_pages": [
+        {"document_id": "eval-aurora-forge", "page": 1, "relevance": 3}
+      ],
+      "reference_answer": "The rooftop solar array produces 42 megawatt-hours of electricity each year.",
+      "expected_citations": [{"document_id": "eval-aurora-forge", "page": 1}]
+    },
+    {
+      "id": "rainwater-use",
+      "question": "What is the collected rainwater used for?",
+      "document_ids": ["eval-aurora-forge"],
+      "query_vector": [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+      "relevant_pages": [
+        {"document_id": "eval-aurora-forge", "page": 2, "relevance": 3}
+      ],
+      "reference_answer": "Filtered rainwater is used to clean tools and water the native garden.",
+      "expected_citations": [{"document_id": "eval-aurora-forge", "page": 2}]
+    },
+    {
+      "id": "battery-safety",
+      "question": "What happens if the battery enclosure gets too hot?",
+      "document_ids": ["eval-aurora-forge"],
+      "query_vector": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+      "relevant_pages": [
+        {"document_id": "eval-aurora-forge", "page": 3, "relevance": 3}
+      ],
+      "reference_answer": "A sensor disconnects the battery if the enclosure exceeds 45 degrees Celsius.",
+      "expected_citations": [{"document_id": "eval-aurora-forge", "page": 3}]
+    },
+    {
+      "id": "clinic-first-visit",
+      "question": "What should a new patient bring to the first visit?",
+      "document_ids": ["eval-northstar-clinic"],
+      "query_vector": [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+      "relevant_pages": [
+        {"document_id": "eval-northstar-clinic", "page": 1, "relevance": 3}
+      ],
+      "reference_answer": "New patients should bring photo identification and a list of current medications.",
+      "expected_citations": [{"document_id": "eval-northstar-clinic", "page": 1}]
+    },
+    {
+      "id": "clinic-hours",
+      "question": "When does Northstar Clinic open on weekdays?",
+      "document_ids": ["eval-northstar-clinic"],
+      "query_vector": [0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+      "relevant_pages": [
+        {"document_id": "eval-northstar-clinic", "page": 2, "relevance": 3}
+      ],
+      "reference_answer": "Northstar Clinic opens at 8:30 a.m. Monday through Friday.",
+      "expected_citations": [{"document_id": "eval-northstar-clinic", "page": 2}]
+    },
+    {
+      "id": "multi-document-boundary",
+      "question": "Which document describes new-patient appointments?",
+      "document_ids": ["eval-aurora-forge", "eval-northstar-clinic"],
+      "query_vector": [0.0, 0.0, 0.0, 0.9, 0.1, 0.0],
+      "relevant_pages": [
+        {"document_id": "eval-northstar-clinic", "page": 1, "relevance": 3}
+      ],
+      "reference_answer": "The Northstar Clinic guide describes new-patient appointments.",
+      "expected_citations": [{"document_id": "eval-northstar-clinic", "page": 1}]
+    }
+  ]
+}

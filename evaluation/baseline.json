@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-11-15T01:36:36.285910+00:00",
+  "git_commit": "3d2099e30ddc91df541afcebdc46eda9739deba4",
+  "config": {
+    "mode": "offline",
+    "cutoff": 5,
+    "candidates": 20,
+    "top_k": 5,
+    "rrf_k": 60,
+    "dataset": "evaluation/golden_dataset.json",
+    "dense_vectors": "fixed fictional fixture vectors"
+  },
+  "aggregate": {
+    "citations": {
+      "f1": 0.5277777777777778,
+      "precision": 0.3666666666666667,
+      "recall": 1.0
+    },
+    "retrieval": {
+      "hit_rate": 1.0,
+      "mrr": 0.9166666666666666,
+      "ndcg": 0.9384882922619097,
+      "recall": 1.0
+    }
+  },
+  "run_timings_seconds": {},
+  "cases": [
+    {
+      "id": "solar-generation",
+      "question": "How much electricity does the rooftop solar array produce?",
+      "retrieved_pages": [
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 1,
+          "relevance": 3
+        },
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 3,
+          "relevance": 0
+        },
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 2,
+          "relevance": 0
+        }
+      ],
+      "retrieval": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "mrr": 1.0,
+        "ndcg": 1.0
+      },
+      "citations": {
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "f1": 0.5
+      },
+      "reference_answer": "The rooftop solar array produces 42 megawatt-hours of electricity each year."
+    },
+    {
+      "id": "rainwater-use",
+      "question": "What is the collected rainwater used for?",
+      "retrieved_pages": [
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 2,
+          "relevance": 3
+        },
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 1,
+          "relevance": 0
+        },
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 3,
+          "relevance": 0
+        }
+      ],
+      "retrieval": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "mrr": 1.0,
+        "ndcg": 1.0
+      },
+      "citations": {
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "f1": 0.5
+      },
+      "reference_answer": "Filtered rainwater is used to clean tools and water the native garden."
+    },
+    {
+      "id": "battery-safety",
+      "question": "What happens if the battery enclosure gets too hot?",
+      "retrieved_pages": [
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 3,
+          "relevance": 3
+        },
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 2,
+          "relevance": 0
+        },
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 1,
+          "relevance": 0
+        }
+      ],
+      "retrieval": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "mrr": 1.0,
+        "ndcg": 1.0
+      },
+      "citations": {
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "f1": 0.5
+      },
+      "reference_answer": "A sensor disconnects the battery if the enclosure exceeds 45 degrees Celsius."
+    },
+    {
+      "id": "clinic-first-visit",
+      "question": "What should a new patient bring to the first visit?",
+      "retrieved_pages": [
+        {
+          "document_id": "eval-northstar-clinic",
+          "page": 1,
+          "relevance": 3
+        },
+        {
+          "document_id": "eval-northstar-clinic",
+          "page": 2,
+          "relevance": 0
+        }
+      ],
+      "retrieval": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "mrr": 1.0,
+        "ndcg": 1.0
+      },
+      "citations": {
+        "precision": 0.5,
+        "recall": 1.0,
+        "f1": 0.6666666666666666
+      },
+      "reference_answer": "New patients should bring photo identification and a list of current medications."
+    },
+    {
+      "id": "clinic-hours",
+      "question": "When does Northstar Clinic open on weekdays?",
+      "retrieved_pages": [
+        {
+          "document_id": "eval-northstar-clinic",
+          "page": 1,
+          "relevance": 0
+        },
+        {
+          "document_id": "eval-northstar-clinic",
+          "page": 2,
+          "relevance": 3
+        }
+      ],
+      "retrieval": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "mrr": 0.5,
+        "ndcg": 0.6309297535714575
+      },
+      "citations": {
+        "precision": 0.5,
+        "recall": 1.0,
+        "f1": 0.6666666666666666
+      },
+      "reference_answer": "Northstar Clinic opens at 8:30 a.m. Monday through Friday."
+    },
+    {
+      "id": "multi-document-boundary",
+      "question": "Which document describes new-patient appointments?",
+      "retrieved_pages": [
+        {
+          "document_id": "eval-northstar-clinic",
+          "page": 1,
+          "relevance": 3
+        },
+        {
+          "document_id": "eval-northstar-clinic",
+          "page": 2,
+          "relevance": 0
+        },
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 1,
+          "relevance": 0
+        },
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 3,
+          "relevance": 0
+        },
+        {
+          "document_id": "eval-aurora-forge",
+          "page": 2,
+          "relevance": 0
+        }
+      ],
+      "retrieval": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "mrr": 1.0,
+        "ndcg": 1.0
+      },
+      "citations": {
+        "precision": 0.2,
+        "recall": 1.0,
+        "f1": 0.33333333333333337
+      },
+      "reference_answer": "The Northstar Clinic guide describes new-patient appointments."
+    }
+  ]
+}

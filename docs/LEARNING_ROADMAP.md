@@ -131,6 +131,13 @@ pipeline; the later sections cover deploying and operating it.
 
 ## 11. Testing, CI, and Git
 
+- [ ] **Golden datasets and evaluation cases** — Curated questions, references, graded relevant context, and citations used as repeatable quality tests.
+- [ ] **Information retrieval metrics** — Hit Rate/Recall@K, Mean Reciprocal Rank, and normalized Discounted Cumulative Gain for ranking results.
+- [ ] **Answer token precision/recall/F1** — A simple overlap metric for comparing generated answers with reference answers, including its limitations.
+- [ ] **Citation precision and recall** — Measuring whether cited document pages match the curated supporting pages.
+- [ ] **LLM-as-judge evaluation** — Using a model to estimate faithfulness/relevance, with added cost, prompt sensitivity, and score variability.
+- [ ] **Evaluation baselines and reports** — Saving per-case and aggregate metrics with code/config metadata to compare changes across runs.
+- [ ] **Live versus offline evaluation** — Separating deterministic no-network regression tests from provider-backed end-to-end runs.
 - [ ] **Unit and API tests with pytest** — Testing chunking, retrieval, endpoint behavior, and response contracts.
 - [ ] **Mocks and fakes** — Replacing Gemini, Milvus, or service objects in tests so tests do not need real cloud credentials.
 - [ ] **Test doubles and interface drift** — Keeping fakes aligned with production method parameters when the service interface changes.
@@ -140,8 +147,11 @@ pipeline; the later sections cover deploying and operating it.
 - [ ] **GitHub Pages publishing** — Building a static site artifact in CI and publishing it with GitHub Actions permissions and environments.
 - [ ] **Workflow triggers and status checks** — Pull-request/push triggers, job names, and making checks required through GitHub branch protection.
 - [ ] **Branch-based continuous deployment (CD)** — Using branch-specific jobs to deploy validated commits to distinct environments.
-- [ ] **Self-hosted GitHub Actions runners** — Running automation on a laptop, runner labels, availability requirements, and the security risk of executing repository code on a personal machine.
-- [ ] **SSH deployment and host-key verification** — Authenticating to EC2 using a scoped key and verifying the server identity rather than blindly trusting a network scan.
+- [ ] **GitHub Container Registry (GHCR)** — Publishing Docker images as GitHub packages, managing package visibility/access, and authenticating image pulls.
+- [ ] **GitHub Actions `GITHUB_TOKEN` permissions** — Granting the workflow only the `packages: write` permission needed to publish a container image.
+- [ ] **Container image publishing versus deployment** — Building/tagging/pushing an image is separate from changing the image running on EC2.
+- [ ] **SSH-based CI/CD deployment** — Using a pinned SSH host key and a restricted deployment key to run a release on EC2.
+- [ ] **Immutable image tags** — Deploying a commit-SHA image rather than relying on a mutable `latest` tag.
 - [ ] **GitHub Environments and scoped secrets** — Separating production/development variables and credentials from committed workflow files.
 - [ ] **Deployment concurrency and health checks** — Preventing overlapping releases and checking service readiness after a deployment.
 - [ ] **Git branches, diffs, and staged changes** — Reviewing exactly what a change will include before committing or pushing.
