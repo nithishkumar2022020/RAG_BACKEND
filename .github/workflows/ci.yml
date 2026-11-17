@@ -223,8 +223,20 @@ jobs:
           RAG_DEV_ENV_FILE: ${{ vars.RAG_DEV_ENV_FILE }}
         run: |
           set -euo pipefail
-          if [[ -z "$RAG_DEV_ENV_FILE" || ! -r "$RAG_DEV_ENV_FILE" ]]; then
-            echo "Configure development variable RAG_DEV_ENV_FILE to a readable local .env file."
+          if [[ -z "$RAG_DEV_ENV_FILE" ]]; then
+            echo "RAG_DEV_ENV_FILE is empty or unavailable. Set it as a variable in the development environment (not as a secret)."
+            exit 1
+          fi
+          if [[ "$RAG_DEV_ENV_FILE" != /* ]]; then
+            echo "RAG_DEV_ENV_FILE must be an absolute path on the self-hosted runner."
+            exit 1
+          fi
+          if [[ ! -f "$RAG_DEV_ENV_FILE" ]]; then
+            echo "RAG_DEV_ENV_FILE does not point to a file visible to the self-hosted runner."
+            exit 1
+          fi
+          if [[ ! -r "$RAG_DEV_ENV_FILE" ]]; then
+            echo "The self-hosted runner user cannot read the file at RAG_DEV_ENV_FILE."
             exit 1
           fi
           install -m 600 "$RAG_DEV_ENV_FILE" "$GITHUB_WORKSPACE/.env"
