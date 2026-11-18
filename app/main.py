@@ -10,8 +10,10 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from google.genai.errors import ClientError
 from pydantic import BaseModel, Field
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
 
+from app.core.auth import require_authenticated_client
 from app.core.config import Settings, get_settings
 from app.services.pdf_ingestion import validate_pdf_upload
 from app.services.rag import RagService
@@ -64,7 +66,23 @@ def get_rag_service() -> RagService:
     return RagService(settings, MilvusStore(settings))
 
 
-app = FastAPI(title="PDF RAG API", version="0.1.0")
+settings = get_settings()
+is_production = settings.app_environment == "production"
+app = FastAPI(
+    title="PDF RAG API",
+    version="0.1.0",
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json",
+)
+if settings.cors_allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_allowed_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept"],
+    )
 
 
 @app.get("/health")
@@ -85,6 +103,7 @@ def _run_document_ingestion(
     settings: Settings,
     rag: RagService,
     semantic_chunking: bool | None,
+    owner_id: str | None,
 ) -> None:
     _update_ingestion_job(job_id, status="processing")
     try:
@@ -94,12 +113,21 @@ def _run_document_ingestion(
 
         storage = create_document_storage(settings)
         storage.save(document_id, content)
-        count = rag.ingest(
-            document_id,
-            filename,
-            pages,
-            semantic_chunking=semantic_chunking,
-        )
+        if owner_id is None:
+            count = rag.ingest(
+                document_id,
+                filename,
+                pages,
+                semantic_chunking=semantic_chunking,
+            )
+        else:
+            count = rag.ingest(
+                document_id,
+                filename,
+                pages,
+                semantic_chunking=semantic_chunking,
+                owner_id=owner_id,
+            )
     except ValueError as error:
         logger.info("Document ingestion job %s rejected: %s", job_id, error)
         _update_ingestion_job(job_id, status="failed", detail=str(error))
@@ -131,6 +159,7 @@ def _run_document_ingestion(
 def upload_document(
     file: Annotated[UploadFile, File()],
     settings: Annotated[Settings, Depends(get_settings)],
+    principal: Annotated[dict | None, Depends(require_authenticated_client)],
     rag: Annotated[RagService, Depends(get_rag_service)],
     semantic_chunking: Annotated[bool | None, Form()] = None,
 ) -> IngestJobResponse:
@@ -160,6 +189,7 @@ def upload_document(
             "status": "queued",
             "chunks": None,
             "detail": None,
+            "owner_id": principal["sub"] if principal else None,
         }
 
     try:
@@ -172,6 +202,7 @@ def upload_document(
             settings,
             rag,
             semantic_chunking,
+            principal["sub"] if principal else None,
         )
     except RuntimeError as error:
         ingestion_slots.release()
@@ -189,10 +220,15 @@ def upload_document(
 
 
 @app.get("/documents/{job_id}", response_model=IngestJobResponse)
-def get_document_ingestion_status(job_id: str) -> IngestJobResponse:
+def get_document_ingestion_status(
+    job_id: str,
+    principal: Annotated[dict | None, Depends(require_authenticated_client)],
+) -> IngestJobResponse:
     with ingestion_jobs_lock:
         job = ingestion_jobs.get(job_id)
-        if job is None:
+        if job is None or (
+            principal is not None and job.get("owner_id") != principal["sub"]
+        ):
             raise HTTPException(404, "Document ingestion job not found")
         return IngestJobResponse(**job)
 
@@ -200,14 +236,17 @@ def get_document_ingestion_status(job_id: str) -> IngestJobResponse:
 @app.post("/questions", response_model=AnswerResponse)
 def ask_question(
     request: QuestionRequest,
+    principal: Annotated[dict | None, Depends(require_authenticated_client)],
     rag: Annotated[RagService, Depends(get_rag_service)],
 ) -> AnswerResponse:
     try:
+        owner_options = {"owner_id": principal["sub"]} if principal else {}
         return AnswerResponse(
             **rag.answer(
                 request.question,
                 document_id=request.document_id,
                 document_ids=request.document_ids,
+                **owner_options,
             )
         )
     except Exception as error:
@@ -226,13 +265,16 @@ def ask_question(
 @app.post("/questions/stream")
 def ask_question_stream(
     request: QuestionRequest,
+    principal: Annotated[dict | None, Depends(require_authenticated_client)],
     rag: Annotated[RagService, Depends(get_rag_service)],
 ) -> StreamingResponse:
     try:
+        owner_options = {"owner_id": principal["sub"]} if principal else {}
         answer_events = rag.stream_answer(
             request.question,
             document_id=request.document_id,
             document_ids=request.document_ids,
+            **owner_options,
         )
     except Exception as error:
         if isinstance(error, ClientError) and error.code == 429:
