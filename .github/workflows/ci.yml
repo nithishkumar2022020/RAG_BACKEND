@@ -208,7 +208,6 @@ jobs:
           )
           APP_ENV=production IMAGE_TAG="$deploy_sha" "${compose[@]}" pull api
           APP_ENV=production IMAGE_TAG="$deploy_sha" "${compose[@]}" up -d --no-build --remove-orphans
-          APP_ENV=production IMAGE_TAG="$deploy_sha" "${compose[@]}" up -d --no-build --no-deps --force-recreate nginx
           if ! published_port=$(APP_ENV=production IMAGE_TAG="$deploy_sha" "${compose[@]}" port nginx 80); then
             echo "ERROR: Could not determine the published host port for Nginx container port 80."
             exit 1
@@ -217,12 +216,21 @@ jobs:
             echo "ERROR: Nginx container port 80 must publish to host port 80; got '${published_port:-no mapping}'."
             exit 1
           fi
-          curl --fail --show-error \
-          --retry 10 \
-          --retry-connrefused \
-          --retry-delay 3 \
-          --resolve synqra-api.duckdns.org:443:127.0.0.1 \
-          https://synqra-api.duckdns.org/health
+          if ! https_port=$(APP_ENV=production IMAGE_TAG="$deploy_sha" "${compose[@]}" port nginx 443); then
+          echo "ERROR: Could not determine the published HTTPS port."
+          exit 1
+          fi
+
+          if [[ ! "$https_port" =~ (^|:)443$ ]]; then
+            echo "ERROR: Nginx must publish HTTPS on host port 443; got '${https_port:-no mapping}'."
+            exit 1
+          fi
+                    curl --fail --show-error \
+                    --retry 10 \
+                    --retry-connrefused \
+                    --retry-delay 3 \
+                    --resolve synqra-api.duckdns.org:443:127.0.0.1 \
+                    https://synqra-api.duckdns.org/health
 
           REMOTE
 
