@@ -11,7 +11,9 @@ The implementation follows a practical hybrid retrieval pattern:
 - Reciprocal Rank Fusion (RRF) to combine both retrieval streams
 - Final answer generation with Gemini using only the retrieved text snippets as source context
 
-This project is a working backend foundation for PDF-based Q&A and can be extended with multi-document support, persistence layers, authentication, and front-end integrations.
+This project is a FastAPI backend for PDF-based Q&A with Cognito authentication and
+per-user retrieval isolation in production. It can be extended with document lifecycle
+management, persistent job tracking, and front-end integrations.
 
 ## 2. Current status
 
@@ -25,7 +27,12 @@ The project is in a working MVP state. The implemented features include:
 - Hybrid search with BM25 + vector ranking
 - Answer generation with source citations
 - Health endpoint and FastAPI OpenAPI docs
+- Cognito access-token verification and per-user document/retrieval isolation
 - Test coverage for ingestion, retrieval, and API contracts
+
+For a chronological troubleshooting record—including symptoms, causes, fixes, verification,
+and remaining deployment tasks—see the [issues and solutions log](ISSUES_AND_SOLUTIONS.md).
+Update that log whenever a newly encountered issue is resolved.
 
 ## 3. Architecture at a glance
 
@@ -57,7 +64,8 @@ High-level flow:
 .
 ├── app/
 │   ├── core/
-│   │   └── config.py                 # Settings and environment configuration
+│   │   ├── auth.py                  # Cognito JWT verification
+│   │   └── config.py                # Settings and environment configuration
 │   ├── services/
 │   │   ├── pdf_ingestion.py          # PDF validation, extraction, and chunking
 │   │   ├── rag.py                   # Main orchestration for ingestion and QA
@@ -73,6 +81,7 @@ High-level flow:
 │   └── PROJECT_DOCUMENTATION.md     # Project documentation
 ├── tests/
 │   ├── test_api.py                  # FastAPI contract tests
+│   ├── test_auth.py                 # Cognito token and access-control tests
 │   ├── test_pdf_ingestion.py       # Chunking and PDF parsing tests
 │   └── test_retrieval.py           # Retrieval ranking tests
 ├── .env.example                     # Sample environment variables
@@ -101,6 +110,12 @@ Key settings:
 - `MILVUS_URI`: Milvus/Zilliz endpoint; local default is `http://localhost:19530`
 - `MILVUS_TOKEN`: Zilliz Cloud cluster token; leave empty for unauthenticated local Milvus
 - `MILVUS_COLLECTION`: vector collection name, default `rag_chunks_v2`
+- `APP_ENV`: `development` or `production`; Compose requires this to be explicitly set
+- `COGNITO_AUTH_ENABLED`: enable Cognito access-token validation; required in production
+- `COGNITO_REGION`, `COGNITO_USER_POOL_ID`, `COGNITO_APP_CLIENT_ID`: expected Cognito
+  identity provider and app client
+- `CORS_ALLOWED_ORIGINS`: explicit browser origins for Flutter Web; wildcard origins are
+  rejected
 - `DATA_DIR`: local storage root, default `data`
 - `DOCUMENT_STORAGE_BACKEND`: `local` or `r2`, default `local`
 - `R2_ACCOUNT_ID`: Cloudflare account ID used to form the R2 S3-compatible endpoint
@@ -117,6 +132,40 @@ Key settings:
 - `MAX_UPLOAD_BYTES`: file size limit, default `20 MiB`
 
 The environment file is `.env`, copied from `.env.example` during local setup.
+
+## 5.1 Authentication and user-data isolation
+
+When authentication is enabled, `POST /documents`, `GET /documents/{job_id}`,
+`POST /questions`, and `POST /questions/stream` require
+`Authorization: Bearer <Cognito access token>`. `GET /health` remains unauthenticated for
+container health checks.
+
+The backend verifies the JWT signature with the configured Cognito user pool JWKS, the exact
+issuer, expiration and issued-at claims, `token_use=access`, and the configured app client ID.
+It does not depend on OAuth scopes or a browser redirect flow. Access tokens obtained through
+Cognito User Pool APIs can therefore be used if they are issued by this same pool and app
+client. The Flutter client must send the **access token**, not an ID token, to both question
+endpoints and document upload/status endpoints.
+
+The verified `sub` claim is the only source of the authenticated user ID. Ingestion stores
+that owner ID on chunks; vector search, lexical candidate selection, whole-document retrieval,
+and ingestion-job status are scoped to it. A supplied `document_id` only narrows the search
+within that owner scope and is not an authorization credential. Documents indexed before
+owner metadata was added will not appear for authenticated users and should be re-ingested.
+
+Original PDF files in R2 are written by the backend, but there are currently no API endpoints
+to read or delete those objects. If such endpoints are added, they must enforce ownership
+server-side rather than relying on an opaque document ID.
+
+Authentication bypass is intended only for local development. Production settings reject
+disabled or incomplete Cognito configuration, Compose requires `APP_ENV` explicitly, and the
+EC2 workflow sets `APP_ENV=production`. The current Nginx configuration exposes HTTP only;
+do not test with real Cognito tokens until HTTPS is configured at a trusted load balancer or
+reverse proxy and direct instance ingress is appropriately restricted.
+
+Flutter Web additionally requires `CORS_ALLOWED_ORIGINS` to list its exact HTTPS origin.
+Native Android and iOS clients do not use browser CORS. CORS does not replace authentication
+or TLS.
 
 ## 6. Runtime dependencies
 
@@ -211,8 +260,9 @@ pull the image and logs out at the end. On EC2, install Docker Engine and the Co
 clone this repository into `EC2_DEPLOY_PATH`, configure its `origin` remote so the workflow can
 fetch `main`, and create the runtime `.env` there. The workflow never transfers or overwrites
 `.env`. Ensure the EC2 security group and any fronting proxy permit the required HTTP/HTTPS
-traffic; Compose itself exposes Nginx over HTTP on port 80. TLS and application authentication
-are separate from this deployment workflow.
+traffic; Compose exposes Nginx over HTTP on port 80. The deployment sets production mode
+and verifies the Nginx port mapping, but it does not provision TLS. TLS termination and
+real-token testing remain separate production rollout requirements.
 
 The Compose API service uses `IMAGE_TAG` to select the GHCR tag. Local Compose runs may continue
 to build from source with `docker compose up --build`; the EC2 deployment sets `IMAGE_TAG` to the
@@ -565,27 +615,27 @@ The storage interface keeps upload handling independent of the storage provider.
 This is a useful MVP, but it still has several practical gaps:
 
 - No multi-document collection awareness beyond storing separate document IDs
-- No persistent user/session tracking
-- No authentication or authorization layer
+- Ingestion-job state is held in process memory and is lost on restart
+- No document download or deletion API
+- R2 objects do not yet have a user-scoped key namespace; no API currently exposes object reads
 - No background job queue for heavy indexing tasks
 - No PDF metadata indexing beyond textual pages
 - No production-grade observability or logging
 - No model versioning or A/B evaluation harness
-- No built-in rate limiting or access controls
+- Nginx rate limits are per-IP and need trusted client-IP handling behind a proxy
 
 ## 15. Suggested next steps
 
 Potential future enhancements:
 
-1. Add a proper database model for documents, users, and ingestion jobs
-2. Support S3-compatible storage for uploaded PDF originals
-3. Add collection-level multi-document search and filtering
-4. Add document deletion and re-indexing operations
+1. Complete frontend Cognito migration and verify access-token use against the configured app client
+2. Terminate TLS for the API, use an HTTPS endpoint, and restrict direct EC2 ingress
+3. Add persistent document ownership and ingestion-job records
+4. Add owner-checked document deletion, re-indexing, and R2 object lifecycle operations
 5. Improve chunking strategies for tables, headers, and references
 6. Add monitoring, tracing, and structured logs
-7. Introduce authentication and API quotas
-8. Add a front-end or dashboard for document management and query history
-9. Add evaluation tests for answer quality and citation correctness
+7. Review rate limits and trusted client-IP handling at the production proxy
+8. Add evaluation tests for answer quality and citation correctness
 
 ## 16. Summary
 

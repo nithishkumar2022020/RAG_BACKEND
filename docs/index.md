@@ -29,6 +29,14 @@ and what to learn to understand and extend it.
 
     [:octicons-arrow-right-24: Run the evaluation harness](EVALUATION.md)
 
+-   :material-wrench-clock: **Issues and solutions**
+
+    ---
+
+    Review encountered problems, verified causes, fixes, and remaining deployment checks.
+
+    [:octicons-arrow-right-24: Browse the incident log](ISSUES_AND_SOLUTIONS.md)
+
 </div>
 
 ## What this project does

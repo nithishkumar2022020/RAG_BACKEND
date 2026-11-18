@@ -1,14 +1,21 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    app_environment: Literal["development", "production"] = "development"
+    cognito_auth_enabled: bool = False
+    cognito_region: str = ""
+    cognito_user_pool_id: str = ""
+    cognito_app_client_id: str = ""
+    cors_allowed_origins: list[str] = Field(default_factory=list)
     gemini_api_key: str = ""
     gemini_embedding_model: str = "gemini-embedding-001"
     gemini_generation_model: str = "gemini-2.5-flash"
@@ -34,6 +41,49 @@ class Settings(BaseSettings):
     top_k: int = Field(default=5, gt=0)
     rrf_k: int = Field(default=60, gt=0)
     max_upload_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
+
+    @model_validator(mode="after")
+    def validate_deployment_configuration(self) -> "Settings":
+        if "*" in self.cors_allowed_origins:
+            raise ValueError("CORS_ALLOWED_ORIGINS must list explicit origins, not '*'.")
+
+        if self.app_environment == "production":
+            if self.document_storage_backend == "r2" and not all(
+                (
+                    self.r2_account_id,
+                    self.r2_bucket,
+                    self.r2_access_key_id,
+                    self.r2_secret_access_key,
+                )
+            ):
+                raise ValueError(
+                    "R2 storage requires account ID, bucket, and access credentials."
+                )
+
+            missing = [
+                name
+                for name, value in (
+                    ("COGNITO_AUTH_ENABLED", self.cognito_auth_enabled),
+                    ("COGNITO_REGION", self.cognito_region),
+                    ("COGNITO_USER_POOL_ID", self.cognito_user_pool_id),
+                    ("COGNITO_APP_CLIENT_ID", self.cognito_app_client_id),
+                    ("GEMINI_API_KEY", self.gemini_api_key),
+                )
+                if not value
+            ]
+            milvus_host = urlparse(self.milvus_uri).hostname
+            if not milvus_host or milvus_host.lower() in {
+                "localhost",
+                "127.0.0.1",
+                "::1",
+            }:
+                missing.append("a non-local MILVUS_URI")
+            if missing:
+                raise ValueError(
+                    "Production configuration is incomplete: " + ", ".join(missing)
+                )
+
+        return self
 
 
 @lru_cache

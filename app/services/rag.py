@@ -146,6 +146,7 @@ class RagService:
         filename: str,
         pages: list[tuple[int, str]],
         semantic_chunking: bool | None = None,
+        owner_id: str | None = None,
     ) -> int:
         use_semantic_chunking = (
             self.settings.chunking_strategy == "semantic"
@@ -168,6 +169,9 @@ class RagService:
         )
         if not chunks:
             return 0
+        if owner_id is not None:
+            for chunk in chunks:
+                chunk["owner_id"] = owner_id
         vectors = self._embed_batches(
             [chunk["text"] for chunk in chunks],
             "RETRIEVAL_DOCUMENT",
@@ -193,11 +197,13 @@ class RagService:
         question: str,
         document_id: str | None = None,
         document_ids: list[str] | None = None,
+        owner_id: str | None = None,
     ) -> dict:
         results, sources = self._get_sources(
             question,
             document_id=document_id,
             document_ids=document_ids,
+            owner_id=owner_id,
         )
         if not results:
             return {"answer": "No relevant PDF content was found.", "citations": []}
@@ -217,11 +223,13 @@ class RagService:
         question: str,
         document_id: str | None = None,
         document_ids: list[str] | None = None,
+        owner_id: str | None = None,
     ) -> Iterator[tuple[str, dict]]:
         results, sources = self._get_sources(
             question,
             document_id=document_id,
             document_ids=document_ids,
+            owner_id=owner_id,
         )
         if not results:
             return iter(
@@ -258,6 +266,7 @@ class RagService:
         question: str,
         document_id: str | None = None,
         document_ids: list[str] | None = None,
+        owner_id: str | None = None,
     ) -> tuple[list[dict], list[dict]]:
         target_ids = []
         if document_id is not None:
@@ -269,9 +278,15 @@ class RagService:
         results = []
         if whole_document:
             if len(target_ids) == 1:
-                results = self.store.get_all_chunks(target_ids[0])
+                if owner_id is None:
+                    results = self.store.get_all_chunks(target_ids[0])
+                else:
+                    results = self.store.get_all_chunks(target_ids[0], owner_id=owner_id)
             else:
-                results = self.store.all_chunks(document_ids=target_ids)
+                if owner_id is None:
+                    results = self.store.all_chunks(document_ids=target_ids)
+                else:
+                    results = self.store.all_chunks(document_ids=target_ids, owner_id=owner_id)
                 results = sorted(
                     results,
                     key=lambda chunk: (chunk.get("filename", ""), chunk.get("page", 0), chunk.get("chunk_index", 0)),
@@ -293,17 +308,23 @@ class RagService:
 
         if not results:
             query_vector = self._embed([question], "RETRIEVAL_QUERY")[0]
+            search_options = {
+                "document_id": document_id,
+                "document_ids": document_ids,
+            }
+            if owner_id is not None:
+                search_options["owner_id"] = owner_id
             dense = self.store.search(
                 query_vector,
                 self.settings.retrieval_candidates,
-                document_id=document_id,
-                document_ids=document_ids,
+                **search_options,
             )
-            chunks = (
-                self.store.all_chunks(document_id=document_id, document_ids=document_ids)
-                if target_ids
-                else self.store.all_chunks()
-            )
+            if target_ids:
+                chunks = self.store.all_chunks(**search_options)
+            elif owner_id is not None:
+                chunks = self.store.all_chunks(owner_id=owner_id)
+            else:
+                chunks = self.store.all_chunks()
             results = hybrid_search(
                 question,
                 dense,

@@ -59,3 +59,32 @@ def test_vector_search_filters_by_selected_document():
     kwargs = client.search.call_args.kwargs
     assert kwargs["filter"] == 'document_id == "doc\\"1"'
     assert kwargs["output_fields"] == ["document_id", "filename", "page", "chunk_index", "text"]
+
+
+def test_vector_search_scopes_results_to_authenticated_owner():
+    settings = Settings(_env_file=None)
+    with patch("app.stores.milvus.MilvusClient") as client_class:
+        client = client_class.return_value
+        client.has_collection.return_value = True
+        client.describe_collection.return_value = {
+            "fields": [{"name": "id"}, {"name": "vector"}]
+        }
+        client.search.return_value = [[{"id": "chunk-1", "entity": {"text": "excerpt"}}]]
+        store = MilvusStore(settings)
+        store.search([0.1, 0.2], 5, document_id="doc-1", owner_id='user"123')
+
+    assert client.search.call_args.kwargs["filter"] == (
+        'document_id == "doc-1" and owner_id == "user\\"123"'
+    )
+
+
+def test_all_chunks_query_scopes_results_to_authenticated_owner():
+    iterator = FakeIterator([[]])
+    with patch("app.stores.milvus.MilvusClient") as client_class:
+        client = client_class.return_value
+        client.query_iterator.return_value = iterator
+        get_all_chunks(client, "rag_chunks_v2", "doc-1", owner_id="user-1")
+
+    assert client.query_iterator.call_args.kwargs["filter"] == (
+        'document_id == "doc-1" and owner_id == "user-1"'
+    )

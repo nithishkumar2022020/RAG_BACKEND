@@ -100,6 +100,30 @@ class ChunkTextTests(unittest.TestCase):
 
 
 class EmbeddingBatchTests(unittest.TestCase):
+    def test_ingestion_stores_authenticated_owner_on_each_chunk(self):
+        settings = Settings(
+            gemini_api_key="test-key",
+            chunking_strategy="fixed",
+            _env_file=None,
+        )
+        captured = {}
+
+        class FakeStore:
+            def insert(self, chunks, vectors):
+                captured["chunks"] = chunks
+
+        with patch("app.services.rag.genai.Client"):
+            service = RagService(settings, FakeStore())
+        with patch.object(service, "_embed_batches", return_value=[[1.0, 0.0]]):
+            service.ingest(
+                "doc-1",
+                "notes.pdf",
+                [(1, "A searchable sentence.")],
+                owner_id="user-1",
+            )
+
+        assert captured["chunks"][0]["owner_id"] == "user-1"
+
     def test_ingestion_can_disable_semantic_chunking_per_document(self):
         settings = Settings(
             gemini_api_key="test-key",
